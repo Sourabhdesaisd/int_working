@@ -153,6 +153,16 @@ class int_monitor extends uvm_monitor;
     tr.debug_mode_reset_i = vif.debug_mode_reset_i;
     tr.debug_ndm_reset_i  = vif.debug_ndm_reset_i;
 
+    `uvm_info("RAW_DUT",
+$sformatf(
+"ext=%0h irq_req=%0b highest_lvl=%0h ack=%0h",
+tr.ext_int,
+tr.interrupt_request_o,
+tr.highest_pending_lvl_pr_o,
+tr.soc_ack_int_id_o),
+UVM_LOW)
+
+ 
   endtask
 
   task update_mirror(int_seq_item tr);
@@ -216,6 +226,20 @@ class int_monitor extends uvm_monitor;
       end
     end
 
+    //------------------------------------------------------------
+// Debug prediction
+//------------------------------------------------------------
+`uvm_info("MON_DEBUG",
+$sformatf(
+"best_found=%0b best_id=%0d best_ctl=0x%02h active_lvl=0x%02h ext=0x%04h en=0x%04h",
+best_found,
+best_id,
+best_ctl,
+tr.active_lvl_pr_i,
+tr.ext_int,
+global_en_mirror),
+UVM_LOW)
+
     if (best_found && (best_ctl > tr.active_lvl_pr_i)) begin
 
       tr.exp_irq_req        = 1'b1;
@@ -268,6 +292,17 @@ class int_monitor extends uvm_monitor;
                 tr.soc_ack_int_id_o,
                 tr.highest_pending_lvl_pr_o),
       UVM_MEDIUM)
+
+
+       `uvm_info("DEBUG",
+$sformatf(
+"valid=%0b bit=%0h mirror=%0h exp_irq=%0b",
+vif.global_int_enable_valid_i,
+vif.global_int_enable_bit_i,
+global_en_mirror,
+tr.exp_irq_req),
+UVM_LOW)
+
 
   endtask
 
