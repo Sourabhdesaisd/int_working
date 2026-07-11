@@ -186,12 +186,11 @@ UVM_LOW)
 
     if (tr.global_int_enable_valid_i) begin
       global_en_mirror = tr.global_int_enable_bit_i[15:0];
+      
 
-      `uvm_info("MON_MIRROR",
-        $sformatf("Global enable mirror updated = 0x%0h", global_en_mirror),
-        UVM_MEDIUM)
+      `uvm_info("GLOBAL_UPDATE",$sformatf("Mirror Updated -> %04h",global_en_mirror),UVM_LOW)
     end
-
+      
   endtask
 
   task predict_expected(int_seq_item tr);
@@ -216,7 +215,7 @@ UVM_LOW)
         if (!best_found) begin
           best_found = 1'b1;
           best_id    = i;
-          best_ctl   = irq_ctl_mirror[i];
+          best_ctl   = irq_ctl_mirror[i][7:0];
         end
         else if (higher_priority(irq_ctl_mirror[i][7:0], i, best_ctl, best_id)) begin
           best_id  = i;
@@ -231,22 +230,34 @@ UVM_LOW)
 //------------------------------------------------------------
 `uvm_info("MON_DEBUG",
 $sformatf(
-"best_found=%0b best_id=%0d best_ctl=0x%02h active_lvl=0x%02h ext=0x%04h en=0x%04h",
+"best_found=%0b best_id=%0d best_ctl=%02h active_lvl=%02h active_level_only=%0d best_level=%0d ext=%04h en=%04h",
 best_found,
 best_id,
 best_ctl,
 tr.active_lvl_pr_i,
+tr.active_lvl_pr_i[7:5],
+best_ctl[7:5],
 tr.ext_int,
 global_en_mirror),
 UVM_LOW)
 
-    if (best_found && (best_ctl > tr.active_lvl_pr_i)) begin
 
-      tr.exp_irq_req        = 1'b1;
-      tr.exp_ack_id         = 8'h10 + best_id[7:0];
-      tr.exp_highest_lvl_pr = best_ctl;
+/*`uvm_info("MON_SCAN",$sformatf("-------------------------------------------"),UVM_LOW)
+for (int j=0;j<NUM_IRQ;j++) begin
+  `uvm_info("MON_SCAN",  $sformatf(  "IRQ=%0d EXT=%0b EN=%0b CTL=%02h",  j,  tr.ext_int[j],  global_en_mirror[j],  irq_ctl_mirror[j][7:0]),
+  UVM_LOW)
 
-    end
+end*/
+
+    // RTL compares only LEVEL bits [7:5]
+if (best_found &&
+    (best_ctl[7:5] > tr.active_lvl_pr_i[7:5])) begin
+
+    tr.exp_irq_req        = 1'b1;
+    tr.exp_ack_id         = 8'h10 + best_id[7:0];
+    tr.exp_highest_lvl_pr = best_ctl;
+
+end
 
     tr.exp_valid = 1'b0;
 
@@ -294,17 +305,10 @@ UVM_LOW)
       UVM_MEDIUM)
 
 
-       `uvm_info("DEBUG",
-$sformatf(
-"valid=%0b bit=%0h mirror=%0h exp_irq=%0b",
-vif.global_int_enable_valid_i,
-vif.global_int_enable_bit_i,
-global_en_mirror,
-tr.exp_irq_req),
-UVM_LOW)
+  //    `uvm_info("GLOBAL_EN",$sformatf("valid=%0b input=%04h mirror=%04h",tr.global_int_enable_valid_i,tr.global_int_enable_bit_i,global_en_mirror),UVM_LOW)
 
 
-  endtask
+    endtask
 
   task predict_mmr_read(int_seq_item tr);
     int irq_id;
@@ -600,6 +604,14 @@ endclass
     // level-priority is greater than active_lvl_pr_i
     // ------------------------------------------------------------
     if (best_found && (best_ctl > tr.active_lvl_pr_i)) begin
+
+        `uvm_info("IRQ_REASON",
+$sformatf(
+"IRQ asserted because best_level=%0d active_level=%0d",
+best_ctl[7:5],
+tr.active_lvl_pr_i[7:5]),
+UVM_LOW)
+
 
       tr.exp_irq_req        = 1'b1;
       tr.exp_ack_id         = 8'h10 + best_id[7:0];
