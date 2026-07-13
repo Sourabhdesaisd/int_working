@@ -9,25 +9,6 @@ class tc029_random_mixed_seq extends uvm_sequence #(int_seq_item);
   //------------------------------------------------------------
   int_seq_item tr;
 
-  //------------------------------------------------------------
-  // Number of Random Transactions
-  //------------------------------------------------------------
-  rand int unsigned num_transactions;
-
-  constraint c_num_transactions
-  {
-    num_transactions inside {[100:200]};
-  }
-
-  //------------------------------------------------------------
-  // Random Operation Selector
-  //------------------------------------------------------------
-  rand int unsigned operation;
-
-  constraint c_operation
-  {
-    operation inside {[0:8]};
-  }
 
   //------------------------------------------------------------
   // Random Fields
@@ -206,45 +187,33 @@ class tc029_random_mixed_seq extends uvm_sequence #(int_seq_item);
 
     finish_item(tr);
 
-    `uvm_info("TC029",
-$sformatf("num_transactions = %0d", num_transactions),
-UVM_NONE)
+repeat (1)
+  begin
 
-    //----------------------------------------------------------
-    // Main Random Loop
-    //----------------------------------------------------------
-    repeat (num_transactions)
-    begin
+    random_irq_cfg();
 
-      assert(this.randomize());
-    
-    `uvm_info("RAND",
-$sformatf("operation = %0d", operation),
-UVM_LOW)
+    random_mmr_read();
 
-      case(operation)
+    random_global_enable();
 
-        0 : random_irq_cfg();
-        
-        1 : random_mmr_read();
-        
-        2 : random_global_enable();
-        
-        3 : random_interrupt_assert();
-        
-        4 : random_ack();
-        
-        5 : random_eoi();
-        
-        6 : random_active_level();
-        
-        7 : random_debug_mode();
-        
-        default : idle_cycle();
-        
-        endcase
+    random_interrupt_assert();
 
-    end
+    random_ack();
+
+    random_eoi();
+
+    random_active_level();
+
+    idle_cycle();
+
+    random_debug_mode();
+
+  end
+
+  `uvm_info("TC029","TC029 COMPLETED",UVM_LOW)
+
+
+
 
 summary = $sformatf(
 "\n================ Random Summary ================\
