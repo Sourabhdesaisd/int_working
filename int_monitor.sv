@@ -15,6 +15,8 @@ class int_monitor extends uvm_monitor;
   bit [7:0] pend_exp_ack_id;
   bit [7:0] pend_exp_lvl_pr;
 
+  ///
+
   function new(string name = "int_monitor", uvm_component parent);
     super.new(name, parent);
     mon_ap = new("mon_ap", this);
@@ -41,6 +43,8 @@ class int_monitor extends uvm_monitor;
     ack_pending     = 1'b0;
     pend_exp_ack_id = 8'h00;
     pend_exp_lvl_pr = 8'h00;
+
+   
 
   endfunction
 
@@ -89,37 +93,48 @@ class int_monitor extends uvm_monitor;
     return 1'b0;
   endfunction
 
-  task run_phase(uvm_phase phase);
-    int_seq_item tr;
+task run_phase(uvm_phase phase);
 
-    forever begin
-      @(posedge vif.soc_clk);
-      #1step;
+  int_seq_item tr;
 
-      tr = int_seq_item::type_id::create("tr", this);
+  forever begin
 
-      sample_dut(tr);
+    @(posedge vif.soc_clk);
+    #1step;
 
-      if (vif.soc_rst == 1'b0) begin
-        reset_model();
+    tr = int_seq_item::type_id::create("tr", this);
 
-        tr.exp_valid          = 1'b0;
-        tr.exp_irq_req        = 1'b0;
-        tr.exp_ack_id         = 8'h00;
-        tr.exp_highest_lvl_pr = 8'h00;
+    sample_dut(tr);
 
-        tr.exp_mmr_read_valid = 1'b0;
-        tr.exp_mmr_read_data  = 32'h0000_0000;
-      end
-      else begin
-        update_mirror(tr);
-        predict_expected(tr);
-        predict_mmr_read(tr);
-      end
+    if (!vif.soc_rst) begin
 
-      mon_ap.write(tr);
+      reset_model();
+
+      tr.exp_valid          = 0;
+      tr.exp_irq_req        = 0;
+      tr.exp_ack_id         = 0;
+      tr.exp_highest_lvl_pr = 0;
+
+      tr.exp_mmr_read_valid = 0;
+      tr.exp_mmr_read_data  = 0;
+
     end
-  endtask
+    else begin
+
+      update_mirror(tr);
+
+      predict_expected(tr);
+
+      predict_mmr_read(tr);
+
+    end
+
+    mon_ap.write(tr);
+
+  end
+
+endtask
+
 
   task sample_dut(int_seq_item tr);
 

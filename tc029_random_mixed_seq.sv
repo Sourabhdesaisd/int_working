@@ -9,6 +9,8 @@ class tc029_random_mixed_seq extends uvm_sequence #(int_seq_item);
   //------------------------------------------------------------
   int_seq_item tr;
 
+  int last_irq_id;  //read purpose
+
 
   //------------------------------------------------------------
   // Random Fields
@@ -198,9 +200,9 @@ repeat (1)
 
     random_interrupt_assert();
 
-    random_ack();
-
     random_eoi();
+
+    random_ack();
 
     random_active_level();
 
@@ -293,6 +295,7 @@ task drive_default();
   //--------------------------------------------------------
   tr.debug_mode_valid_i = 1'b0;
 
+
 endtask
 
 //------------------------------------------------------------
@@ -303,6 +306,8 @@ task random_irq_cfg();
   drive_default();
 
   irq_id = $urandom_range(0,15);
+
+  last_irq_id = irq_id;
 
   irq_ctl[7:5] = $urandom_range(0,7);
 
@@ -371,6 +376,8 @@ task random_interrupt_assert();
 
   irq_count++;
 
+    irq_active = 1'b1;     
+
   `uvm_info("TC029_IRQ",
   $sformatf("EXT_INT = %04h",
             ext_pending),
@@ -380,66 +387,37 @@ task random_interrupt_assert();
 
 endtask
 
-//------------------------------------------------------------
-// Random ACK
-//------------------------------------------------------------
 task random_ack();
 
-  drive_default();
-
   if(!irq_active)
-  begin
+    return;
 
-      idle_cycle();
-      return;
-
-  end
+  drive_default();
 
   tr.soc_ack_read_valid_en = 1'b1;
 
   ack_count++;
 
-  `uvm_info("TC029_ACK",
-  "Random ACK Generated",
-  UVM_MEDIUM)
-
   finish_item(tr);
 
 endtask
 
-//------------------------------------------------------------
-// Random EOI
-//------------------------------------------------------------
+
 task random_eoi();
+
+  if(!irq_active)
+    return;
 
   drive_default();
 
-  //----------------------------------------------------------
-  // No active interrupt
-  //----------------------------------------------------------
-  if (!irq_active) begin
-    idle_cycle();
-    return;
-  end
-
-  //----------------------------------------------------------
-  // Send EOI
-  //----------------------------------------------------------
   tr.soc_eoi_valid_i = 1'b1;
   tr.soc_eoi_id_i    = last_ack_id;
 
-  //----------------------------------------------------------
-  // Local model update
-  //----------------------------------------------------------
-  irq_active = 1'b0;
+  irq_active = 0;
+
   current_active_level = 8'h00;
 
   eoi_count++;
-
-  `uvm_info("TC029_EOI",
-    $sformatf("EOI Generated ID = 0x%02h",
-              last_ack_id),
-    UVM_MEDIUM)
 
   finish_item(tr);
 
@@ -490,7 +468,7 @@ task random_mmr_read();
 
     drive_default();
 
-    irq_id = $urandom_range(0,15);
+    irq_id = last_irq_id;
 
     tr.soc_mmr_read_en_i   = 1'b1;
 

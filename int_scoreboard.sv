@@ -3,7 +3,16 @@ class int_scoreboard extends uvm_scoreboard;
 //------------------------------------------------------------
 // Expected IRQ Queue
 //------------------------------------------------------------
-int_seq_item exp_irq_q[$];
+typedef struct {
+  bit       irq_req;
+  bit       valid;
+  bit [7:0] ack_id;
+  bit [7:0] lvl_pr;
+} irq_expect_t;
+
+irq_expect_t exp_irq_q[$];
+
+
 
   `uvm_component_utils(int_scoreboard)
 
@@ -80,6 +89,9 @@ int_seq_item exp_irq_q[$];
 
   function void write(int_seq_item tr);
 
+irq_expect_t exp;
+  
+
   //============================================================
   // MMR READ CHECK
   //============================================================
@@ -118,77 +130,111 @@ int_seq_item exp_irq_q[$];
   end
 
 
-  //============================================================
-  // IRQ REQUEST CHECK
-  //============================================================
+  //------------------------------------------------------------
+// Push every expected IRQ into queue
+//------------------------------------------------------------
+if (tr.exp_irq_req) begin
 
-  if (!tr.exp_irq_req) begin
+  irq_expect_t exp;
+
+  exp.irq_req = tr.exp_irq_req;
+  exp.valid   = tr.exp_valid;
+  exp.ack_id  = tr.exp_ack_id;
+  exp.lvl_pr  = tr.exp_highest_lvl_pr;
+
+  exp_irq_q.push_back(exp);
+
+  `uvm_info("IRQ_QUEUE",
+    $sformatf(
+      "PUSH queue=%0d ack=%0h lvl=%0h",
+      exp_irq_q.size(),
+      exp.ack_id,
+      exp.lvl_pr),
+    UVM_LOW)
+
+end
+
+//------------------------------------------------------------
+// Nothing to compare until DUT raises IRQ
+//------------------------------------------------------------
+if (!tr.interrupt_request_o) begin
     ignored_count++;
     return;
-  end
+end
 
-  irq_compare_count++;
+if (exp_irq_q.size()==0) begin
 
-  if (tr.interrupt_request_o === tr.exp_irq_req) begin
+    ignored_count++;
+
+    `uvm_warning("IRQ_QUEUE",
+        "IRQ asserted but expected queue empty")
+
+    return;
+
+end
+
+
+
+exp = exp_irq_q.pop_front();
+
+`uvm_info("IRQ_QUEUE",
+$sformatf(
+"POP queue=%0d ack=%0h lvl=%0h",
+exp_irq_q.size(),
+exp.ack_id,
+exp.lvl_pr),
+UVM_LOW)
+
+
+irq_compare_count++;
+
+if (exp.irq_req == tr.interrupt_request_o) begin
 
     irq_pass_count++;
 
     `uvm_info("IRQ_COMPARE",
-      $sformatf(
-      "PASS IRQ compare=%0d exp_irq=%0b act_irq=%0b",
-      irq_compare_count,
-      tr.exp_irq_req,
-      tr.interrupt_request_o),
-      UVM_LOW)
+    $sformatf(
+    "PASS IRQ compare=%0d exp_irq=%0b act_irq=%0b",
+    irq_compare_count,
+    exp.irq_req,
+    tr.interrupt_request_o),
+    UVM_LOW);
 
-  end
-  else begin
+end
+else begin
 
     irq_fail_count++;
 
     `uvm_error("IRQ_COMPARE",
-      $sformatf(
-      "\n========================================\
-      \nIRQ REQUEST FAIL\
-      \n========================================\
-      \nExpected IRQ      : %0b\
-      \nActual IRQ        : %0b\
-      \nExpected ACK ID   : 0x%0h\
-      \nExpected LEVEL    : 0x%0h\
-      \nActual LEVEL      : 0x%0h\
-      \nEXT_INT           : 0x%0h\
-      \nGLOBAL_ENABLE     : 0x%0h\
-      \nACTIVE_LEVEL      : 0x%0h\
-      \n========================================",
-      tr.exp_irq_req,
-      tr.interrupt_request_o,
-      tr.exp_ack_id,
-      tr.exp_highest_lvl_pr,
-      tr.highest_pending_lvl_pr_o,
-      tr.ext_int,
-      tr.global_int_enable_bit_i,
-      tr.active_lvl_pr_i))
+    $sformatf(
+    "\nIRQ FAIL\nExpected=%0b Actual=%0b",
+    exp.irq_req,
+    tr.interrupt_request_o));
 
     return;
 
-  end
+end
 
+if (tr.soc_eoi_valid_i &&
+    (tr.soc_eoi_id_i != tr.exp_ack_id)) begin
 
+    if (!tr.interrupt_request_o) begin
+
+        `uvm_error("INVALID_EOI",
+            "Interrupt cleared after INVALID EOI")
+
+    end
+    else begin
+
+        `uvm_info("INVALID_EOI",
+            "Interrupt correctly remained active after INVALID EOI",
+            UVM_LOW)
+
+    end
+
+end
   //============================================================
   // WAIT UNTIL ACK IS EXPECTED
-  //============================================================
-`uvm_info("SCB_DEBUG",
-$sformatf(
-"exp_irq=%0b act_irq=%0b exp_lvl=0x%02h act_lvl=0x%02h exp_ack=0x%02h act_ack=0x%02h exp_valid=%0b",
-tr.exp_irq_req,
-tr.interrupt_request_o,
-tr.exp_highest_lvl_pr,
-tr.highest_pending_lvl_pr_o,
-tr.exp_ack_id,
-tr.soc_ack_int_id_o,
-tr.exp_valid),
-UVM_LOW)
-
 
 
   if (!tr.exp_valid) begin
@@ -281,11 +327,6 @@ $sformatf(
 \nMMR COMPARES      : %0d\
 \nMMR PASS          : %0d\
 \nMMR FAIL          : %0d\
-\n\
-\nGENERAL\
-\n------------------------------------------------------------\
-\nIGNORED           : %0d\
-\n\
 \n============================================================",
 
 irq_compare_count,
@@ -298,10 +339,7 @@ ack_fail_count,
 
 mmr_compare_count,
 mmr_pass_count,
-mmr_fail_count,
-
-ignored_count
-
+mmr_fail_count
 ),
 UVM_LOW)
 
