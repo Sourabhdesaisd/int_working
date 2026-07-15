@@ -1597,9 +1597,31 @@ task body();
   repeat(500)
   begin
 
-    assert(randomize());
+   
+   if (pending_irq != 16'h0000)
+begin
+    assert(randomize(operation) with {
+        operation inside {ACK, EOI, IDLE};
+    });
+end
+else
+begin
+    assert(randomize(operation) with {
+        operation inside {
+            MMR_WRITE,
+            MMR_READ,
+            GLOBAL_ENABLE,
+            EXT_INTERRUPT,
+            ACTIVE_LEVEL,
+            DEBUG_MODE,
+            DEBUG_RESET,
+            NDM_RESET,
+            IDLE
+        };
+    });
+end
 
-    case(operation)
+case(operation)
       
 
       MMR_WRITE:
