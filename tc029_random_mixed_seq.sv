@@ -89,13 +89,14 @@ class tc029_random_mixed_seq extends uvm_sequence #(int_seq_item);
   // External Interrupt cannot be zero
 
   constraint ext_irq_c
-  {
-    ext_irq != 16'h0000;
-  }
+{
+    if(operation == EXT_INTERRUPT)
+        ext_irq != 16'h0000;
+}
 
   // Enable mask cannot be zero
 
-  constraint enable_c
+ constraint enable_c
   {
     enable_mask != 16'h0000;
   }
@@ -126,9 +127,11 @@ class tc029_random_mixed_seq extends uvm_sequence #(int_seq_item);
     $countones(ext_irq) inside {[2:6]};
   }
   
-  constraint enable_match_c {
-  (enable_mask & ext_irq) != 16'h0000;
-    }
+    constraint enable_match_c
+{
+    if(operation == EXT_INTERRUPT)
+        (enable_mask & ext_irq) != 16'h0000;
+}
 
 
 
@@ -520,9 +523,9 @@ task body();
   begin
 
     // Random Enable Mask
-    assert(randomize(enable_mask))
-    else
-      `uvm_error(get_type_name(),"Enable Mask Randomization Failed")
+assert(randomize(enable_mask))
+else
+  `uvm_error(get_type_name(),"Enable Mask Randomization Failed")
 
     tr = int_seq_item::type_id::create("global_enable");
 
